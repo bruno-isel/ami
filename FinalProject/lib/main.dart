@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'app_state.dart';
 import 'routes.dart';
 import 'screens/my_tasks_screen.dart';
+import 'screens/task_detail_screen.dart';
 import 'utils/constants.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -33,6 +34,10 @@ class VoiceTaskApp extends StatelessWidget {
       initialRoute: Routes.myTasks,
       routes: {
         Routes.myTasks: (_) => const MyTasksScreen(),
+        Routes.taskDetail: (ctx) {
+          final id = ModalRoute.of(ctx)!.settings.arguments as String;
+          return TaskDetailScreen(taskId: id);
+        },
       },
     );
   }

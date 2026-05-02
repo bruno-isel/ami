@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../app_state.dart';
 import '../models/task.dart';
+import '../routes.dart';
 import '../utils/constants.dart';
 import '../utils/haptics.dart';
 
@@ -87,7 +88,11 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                         onTap: () {
                           state.addLog('task_open',
                               meta: {'taskId': task.id});
-                          // Navigator.pushNamed — Task Detail, Week 2
+                          Navigator.pushNamed(
+                            context,
+                            Routes.taskDetail,
+                            arguments: task.id,
+                          );
                         },
                       );
                     },

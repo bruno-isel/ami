@@ -108,6 +108,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateTask(String id, Task updated) {
+    final i = tasks.indexWhere((t) => t.id == id);
+    if (i < 0) return;
+    tasks[i] = updated;
+    notifyListeners();
+  }
+
   void deleteTask(String id) {
     tasks.removeWhere((t) => t.id == id);
     addLog('task_deleted', meta: {'taskId': id});
