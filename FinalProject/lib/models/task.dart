@@ -8,6 +8,7 @@ class Task {
   bool gpsReminder;
   double? lat;
   double? lng;
+  String? locationName;
   final DateTime createdAt;
   int orderIndex;
 
@@ -21,6 +22,7 @@ class Task {
     this.gpsReminder = false,
     this.lat,
     this.lng,
+    this.locationName,
     required this.createdAt,
     required this.orderIndex,
   });
@@ -34,6 +36,7 @@ class Task {
     bool? gpsReminder,
     Object? lat = _sentinel,
     Object? lng = _sentinel,
+    Object? locationName = _sentinel,
     int? orderIndex,
   }) {
     return Task(
@@ -46,6 +49,7 @@ class Task {
       gpsReminder: gpsReminder ?? this.gpsReminder,
       lat: lat == _sentinel ? this.lat : lat as double?,
       lng: lng == _sentinel ? this.lng : lng as double?,
+      locationName: locationName == _sentinel ? this.locationName : locationName as String?,
       createdAt: createdAt,
       orderIndex: orderIndex ?? this.orderIndex,
     );

@@ -21,6 +21,7 @@ dependencies:
   # Sensors / location / notifications
   sensors_plus: ^6.1.0
   geolocator: ^13.0.2
+  http: ^1.2.0
   flutter_local_notifications: ^18.0.1
   permission_handler: ^11.3.1
 
