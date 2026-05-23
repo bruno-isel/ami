@@ -86,8 +86,8 @@ O Lab 2 produziu um protótipo Figma com 7 ecrãs. A implementação funcional i
 **Shake — Undo de Tarefa**
 
 - **Figma:** overlay semi-transparente com duas opções: "Delete last task" e "Re-dictate".
-- **Implementação:** AlertDialog simples com "Remove" / "Keep", apenas para desfazer a última tarefa criada.
-- **Justificação:** a opção "Re-dictate" no overlay criava confusão sobre o estado da app. Simplificou-se para um undo explícito, consistente com o padrão de undo já presente no swipe-to-delete.
+- **Implementação:** AlertDialog simples com "Remove" / "Keep", apenas para desfazer a última tarefa criada. Adicionado toggle nas definições para ativar/desativar o gesto de shake.
+- **Justificação:** a opção "Re-dictate" no overlay criava confusão sobre o estado da app. Simplificou-se para um undo explícito, consistente com o padrão de undo já presente no swipe-to-delete. O toggle foi introduzido na sequência dos testes de usabilidade do protótipo funcional, onde alguns participantes reportaram ativações acidentais do shake ao pousar ou levantar o dispositivo.
 
 **Ecrã Task Created**
 

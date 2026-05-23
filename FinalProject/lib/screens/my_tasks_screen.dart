@@ -19,14 +19,15 @@ class MyTasksScreen extends StatefulWidget {
 
 class _MyTasksScreenState extends State<MyTasksScreen> {
   bool _showCompleted = false;
-  StreamSubscription<AccelerometerEvent>? _accelSub;
+  bool _shakeEnabled = true;
+  StreamSubscription<UserAccelerometerEvent>? _accelSub;
   DateTime? _lastShakeTime;
   bool _shakeDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _accelSub = accelerometerEventStream().listen(_onAccelerometer);
+    _accelSub = userAccelerometerEventStream().listen(_onAccelerometer);
   }
 
   @override
@@ -35,8 +36,9 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
     super.dispose();
   }
 
-  void _onAccelerometer(AccelerometerEvent e) {
+  void _onAccelerometer(UserAccelerometerEvent e) {
     final magnitude = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
+    if (!_shakeEnabled) return;
     if (magnitude < kShakeThreshold) return;
 
     final now = DateTime.now();
@@ -111,12 +113,35 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                   meta: {'show': _showCompleted});
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.list),
-            onPressed: () {
-              state.addLog('nav_to_lists');
-              // Navigator.pushNamed(context, Routes.myLists); — Week 2
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'shake') {
+                setState(() => _shakeEnabled = !_shakeEnabled);
+                state.addLog('shake_toggle',
+                    meta: {'enabled': _shakeEnabled});
+              }
             },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'shake',
+                child: Row(
+                  children: [
+                    Icon(
+                      _shakeEnabled
+                          ? Icons.vibration
+                          : Icons.phonelink_erase,
+                      color: _shakeEnabled ? kPrimaryBlue : Colors.grey,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(_shakeEnabled
+                        ? 'Shake to undo: on'
+                        : 'Shake to undo: off'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
