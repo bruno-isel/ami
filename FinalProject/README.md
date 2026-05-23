@@ -83,11 +83,14 @@ O Lab 2 produziu um protótipo Figma com 7 ecrãs. A implementação funcional i
 - **Implementação:** microfone ativado por toque simples. Campo de transcrição **editável com teclado** após o ditado.
 - **Justificação:** o hold gesture revelou-se ambíguo nos testes do Lab 2; o toque único é o padrão de todas as apps de voz (Siri, Google Assistant). A edição do texto captado permite corrigir erros de reconhecimento sem recomeçar — melhoria diretamente sugerida pelos participantes do Lab 2.
 
-**Shake — Undo de Tarefa**
+**Shake — Comportamento contextual por ecrã**
 
-- **Figma:** overlay semi-transparente com duas opções: "Delete last task" e "Re-dictate".
-- **Implementação:** AlertDialog simples com "Remove" / "Keep", apenas para desfazer a última tarefa criada. Adicionado toggle nas definições para ativar/desativar o gesto de shake.
-- **Justificação:** a opção "Re-dictate" no overlay criava confusão sobre o estado da app. Simplificou-se para um undo explícito, consistente com o padrão de undo já presente no swipe-to-delete. O toggle foi introduzido na sequência dos testes de usabilidade do protótipo funcional, onde alguns participantes reportaram ativações acidentais do shake ao pousar ou levantar o dispositivo.
+- **Figma:** overlay global com duas opções fixas: "Delete last task" e "Re-dictate".
+- **Implementação:** o comportamento do shake varia conforme o ecrã ativo, tornando o gesto mais intuitivo e contextual:
+  - **My Tasks:** AlertDialog "Remove / Keep" para desfazer a última tarefa criada.
+  - **Voice Input:** limpa imediatamente a transcrição atual e volta ao estado inicial, permitindo recomeçar o ditado sem tocar no ecrã.
+  - Adicionado toggle no menu (⋮) para ativar/desativar o shake em My Tasks.
+- **Justificação:** o overlay global do Figma foi simplificado porque a opção "Re-dictate" criava confusão sobre o estado da tarefa. A diferenciação por ecrã foi sugerida pelos participantes dos testes de usabilidade do protótipo funcional, que esperavam que o gesto fizesse "desfazer o que acabei de fazer" — o que tem significados diferentes consoante o ecrã em que se encontram. O toggle surgiu após participantes reportarem ativações acidentais ao levantar o dispositivo.
 
 **Ecrã Task Created**
 

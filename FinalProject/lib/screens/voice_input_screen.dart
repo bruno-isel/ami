@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../app_state.dart';
 import '../routes.dart';
@@ -20,11 +23,15 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
   final _textCtrl = TextEditingController();
+  String _accumulated = '';
+  StreamSubscription<UserAccelerometerEvent>? _accelSub;
+  DateTime? _lastShakeTime;
 
   @override
   void initState() {
     super.initState();
     _textCtrl.addListener(() => setState(() {}));
+    _accelSub = userAccelerometerEventStream().listen(_onAccelerometer);
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -37,10 +44,34 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
 
   @override
   void dispose() {
+    _accelSub?.cancel();
     _pulseCtrl.dispose();
     _textCtrl.dispose();
     _speech.stop();
     super.dispose();
+  }
+
+  void _onAccelerometer(UserAccelerometerEvent e) {
+    final magnitude = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
+    if (magnitude < kShakeThreshold) return;
+    final now = DateTime.now();
+    if (_lastShakeTime != null &&
+        now.difference(_lastShakeTime!).inMilliseconds < kShakeWindowMs) return;
+    _lastShakeTime = now;
+    _clearAndRetry();
+  }
+
+  Future<void> _clearAndRetry() async {
+    await _speech.stop();
+    final state = context.read<AppState>();
+    state.stopListening();
+    state.updateTranscription('');
+    _pulseCtrl.stop();
+    _pulseCtrl.reset();
+    _accumulated = '';
+    _textCtrl.clear();
+    hapticHeavy();
+    state.addLog('shake_clear_voice', modality: 'shake');
   }
 
   Future<void> _initSpeech() async {
@@ -67,10 +98,13 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     hapticMedium();
     state.startListening();
     _pulseCtrl.repeat(reverse: true);
+    _accumulated = _textCtrl.text.trim();
     await _speech.listen(
       onResult: (result) {
-        state.updateTranscription(result.recognizedWords);
-        _textCtrl.text = result.recognizedWords;
+        final words = result.recognizedWords;
+        final combined = _accumulated.isEmpty ? words : '$_accumulated $words';
+        _textCtrl.text = combined;
+        state.updateTranscription(combined);
       },
       listenOptions: SpeechListenOptions(
         partialResults: true,
