@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../app_state.dart';
 import '../routes.dart';
 import '../utils/constants.dart';
 import '../utils/haptics.dart';
+import '../widgets/location_search_sheet.dart';
 
 class ConfirmTaskScreen extends StatefulWidget {
   const ConfirmTaskScreen({super.key});
@@ -17,6 +21,11 @@ class _ConfirmTaskScreenState extends State<ConfirmTaskScreen> {
   late TextEditingController _titleCtrl;
   DateTime? _dueDate;
   late String _listId;
+  bool _gpsReminder = false;
+  double? _lat;
+  double? _lng;
+  String? _locationName;
+  bool _loadingLocation = false;
 
   @override
   void initState() {
@@ -39,10 +48,85 @@ class _ConfirmTaskScreenState extends State<ConfirmTaskScreen> {
       title: _titleCtrl.text.trim().isEmpty ? draft.title : _titleCtrl.text.trim(),
       dueDate: _dueDate,
       listId: _listId,
+      gpsReminder: _gpsReminder,
+      lat: _lat,
+      lng: _lng,
+      locationName: _locationName,
     );
     state.confirmDraft();
     hapticMedium();
     Navigator.pushReplacementNamed(context, Routes.taskCreated);
+  }
+
+  Future<void> _fetchLocation() async {
+    setState(() => _loadingLocation = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permissão de localização negada')),
+          );
+        }
+        return;
+      }
+      Position? pos = await Geolocator.getLastKnownPosition();
+      pos ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (mounted) {
+        String? name;
+        try {
+          final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+            'lat': pos.latitude.toString(),
+            'lon': pos.longitude.toString(),
+            'format': 'json',
+          });
+          final resp = await http.get(uri,
+              headers: {'User-Agent': 'VoiceTask/1.0 (student project)'});
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          name = locationShortName(data['display_name'] as String? ?? '');
+        } catch (_) {}
+        setState(() {
+          _lat = pos!.latitude;
+          _lng = pos.longitude;
+          _locationName = name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível obter localização: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLocation = false);
+    }
+  }
+
+  Future<void> _searchLocation() async {
+    final result =
+        await showModalBottomSheet<({double lat, double lng, String name})>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => const LocationSearchSheet(),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _lat = result.lat;
+      _lng = result.lng;
+      _locationName = result.name;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -177,6 +261,108 @@ class _ConfirmTaskScreenState extends State<ConfirmTaskScreen> {
                   onTap: () => setState(() => _listId = kPersonalListId),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // GPS reminder
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('Lembrete por localização',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w500)),
+                    subtitle: const Text('Lembrar ao chegar a este local',
+                        style: TextStyle(fontSize: 12)),
+                    value: _gpsReminder,
+                    activeColor: kPrimaryBlue,
+                    secondary: Icon(Icons.location_on,
+                        color: _gpsReminder ? kPrimaryBlue : Colors.grey[400]),
+                    onChanged: (v) {
+                      setState(() {
+                        _gpsReminder = v;
+                        if (!v) {
+                          _lat = null;
+                          _lng = null;
+                          _locationName = null;
+                        }
+                      });
+                    },
+                  ),
+                  if (_gpsReminder) ...[
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              if (_lat != null)
+                                TextButton(
+                                  onPressed: () => setState(() {
+                                    _lat = null;
+                                    _lng = null;
+                                    _locationName = null;
+                                  }),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8)),
+                                  child: const Text('Limpar'),
+                                ),
+                              TextButton.icon(
+                                onPressed: _searchLocation,
+                                icon: const Icon(Icons.search, size: 16),
+                                label: const Text('Pesquisar'),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: kPrimaryBlue,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8)),
+                              ),
+                              TextButton.icon(
+                                onPressed:
+                                    _loadingLocation ? null : _fetchLocation,
+                                icon: _loadingLocation
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2))
+                                    : const Icon(Icons.my_location, size: 16),
+                                label: const Text('Atual'),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: kPrimaryBlue,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8)),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                            child: Text(
+                              _lat != null
+                                  ? (_locationName ??
+                                      '${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}')
+                                  : 'Nenhum local definido',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: _lat != null
+                                      ? Colors.black87
+                                      : Colors.grey[500]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
 
             const Spacer(),
