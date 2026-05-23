@@ -19,10 +19,12 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   bool _speechAvailable = false;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
+  final _textCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _textCtrl.addListener(() => setState(() {}));
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -36,6 +38,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   @override
   void dispose() {
     _pulseCtrl.dispose();
+    _textCtrl.dispose();
     _speech.stop();
     super.dispose();
   }
@@ -65,8 +68,14 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
     state.startListening();
     _pulseCtrl.repeat(reverse: true);
     await _speech.listen(
-      onResult: (result) => state.updateTranscription(result.recognizedWords),
-      listenOptions: SpeechListenOptions(partialResults: true),
+      onResult: (result) {
+        state.updateTranscription(result.recognizedWords);
+        _textCtrl.text = result.recognizedWords;
+      },
+      listenOptions: SpeechListenOptions(
+        partialResults: true,
+        localeId: 'pt_PT',
+      ),
     );
   }
 
@@ -86,6 +95,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   }
 
   void _confirm(AppState state) {
+    state.updateTranscription(_textCtrl.text.trim());
     state.buildDraftFromTranscription();
     state.addLog('voice_confirm', modality: 'voice',
         meta: {'transcription': state.currentTranscription});
@@ -97,8 +107,7 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final isListening = state.isListening;
-    final transcription = state.currentTranscription;
-    final hasText = transcription.trim().isNotEmpty;
+    final hasText = _textCtrl.text.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -180,24 +189,34 @@ class _VoiceInputScreenState extends State<VoiceInputScreen>
             AnimatedOpacity(
               opacity: hasText || isListening ? 1.0 : 0.0,
               duration: kAnimDuration,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isListening
-                        ? kPrimaryBlue.withValues(alpha: 0.4)
-                        : Colors.grey[200]!,
+              child: TextField(
+                controller: _textCtrl,
+                enabled: !isListening,
+                maxLines: null,
+                style: const TextStyle(fontSize: 17, height: 1.5),
+                decoration: InputDecoration(
+                  hintText: '...',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  contentPadding: const EdgeInsets.all(20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
                   ),
-                ),
-                child: Text(
-                  hasText ? transcription : '...',
-                  style: TextStyle(
-                    fontSize: 17,
-                    color: hasText ? Colors.black87 : Colors.grey[400],
-                    height: 1.5,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide:
+                        const BorderSide(color: kPrimaryBlue, width: 1.5),
+                  ),
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(
+                        color: kPrimaryBlue.withValues(alpha: 0.4)),
                   ),
                 ),
               ),

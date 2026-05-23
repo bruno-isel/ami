@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import '../app_state.dart';
 import '../models/task.dart';
 import '../routes.dart';
@@ -16,6 +19,67 @@ class MyTasksScreen extends StatefulWidget {
 
 class _MyTasksScreenState extends State<MyTasksScreen> {
   bool _showCompleted = false;
+  StreamSubscription<AccelerometerEvent>? _accelSub;
+  DateTime? _lastShakeTime;
+  bool _shakeDialogOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _accelSub = accelerometerEventStream().listen(_onAccelerometer);
+  }
+
+  @override
+  void dispose() {
+    _accelSub?.cancel();
+    super.dispose();
+  }
+
+  void _onAccelerometer(AccelerometerEvent e) {
+    final magnitude = sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
+    if (magnitude < kShakeThreshold) return;
+
+    final now = DateTime.now();
+    if (_lastShakeTime != null &&
+        now.difference(_lastShakeTime!).inMilliseconds < kShakeWindowMs) return;
+    _lastShakeTime = now;
+
+    if (_shakeDialogOpen) return;
+    final state = context.read<AppState>();
+    if (state.lastCreatedTask == null) return;
+
+    hapticHeavy();
+    state.addLog('shake_detected', modality: 'shake');
+    _showShakeDialog(state);
+  }
+
+  Future<void> _showShakeDialog(AppState state) async {
+    _shakeDialogOpen = true;
+    final taskTitle = state.lastCreatedTask!.title;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Undo last task?'),
+        content: Text('Remove "$taskTitle"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Keep', style: TextStyle(color: Colors.grey[600])),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    _shakeDialogOpen = false;
+    if (confirmed == true) {
+      hapticMedium();
+      state.undoLastCreate();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
