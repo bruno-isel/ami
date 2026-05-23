@@ -195,13 +195,17 @@ class AppState extends ChangeNotifier {
     draftTask = null;
   }
 
-  // Naive NLP — sufficient for prototype
+  // Naive NLP — handles Portuguese and English
   String _extractTitle(String text) {
     var title = text
+        .replaceAll(RegExp(r'\bamanhã\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\bhoje\b', caseSensitive: false), '')
         .replaceAll(RegExp(r'\btomorrow\b', caseSensitive: false), '')
         .replaceAll(RegExp(r'\btoday\b', caseSensitive: false), '')
         .replaceAll(
-            RegExp(r'\bat \d{1,2}(:\d{2})?\s*(am|pm)?\b', caseSensitive: false), '')
+            RegExp(r'\b(às|as|at) \d{1,2}(:\d{2})?\s*(am|pm|h)?\b',
+                caseSensitive: false),
+            '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     if (title.isEmpty) return text;
@@ -212,18 +216,25 @@ class AppState extends ChangeNotifier {
     final now = DateTime.now();
     final lower = text.toLowerCase();
     final (hour, minute) = _extractTime(text);
-    if (lower.contains('tomorrow')) {
+    if (lower.contains('amanhã') || lower.contains('tomorrow')) {
       final d = now.add(const Duration(days: 1));
       return DateTime(d.year, d.month, d.day, hour, minute);
     }
-    if (lower.contains('today')) {
+    if (lower.contains('hoje') || lower.contains('today')) {
+      return DateTime(now.year, now.month, now.day, hour, minute);
+    }
+    if (_hasTimeWord(text)) {
       return DateTime(now.year, now.month, now.day, hour, minute);
     }
     return null;
   }
 
+  bool _hasTimeWord(String text) =>
+      RegExp(r'\b(às|as|at) \d{1,2}', caseSensitive: false).hasMatch(text);
+
   (int, int) _extractTime(String text) {
-    final match = RegExp(r'at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?',
+    final match = RegExp(
+            r'\b(?:às|as|at) (\d{1,2})(?::(\d{2}))?\s*(am|pm|h)?',
             caseSensitive: false)
         .firstMatch(text);
     if (match == null) return (9, 0);

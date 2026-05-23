@@ -103,7 +103,7 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           state.addLog('voice_fab_tap', modality: 'touch');
-          // Navigator.pushNamed(context, Routes.voiceInput); — Week 3
+          Navigator.pushNamed(context, Routes.voiceInput);
         },
         backgroundColor: kPrimaryBlue,
         icon: const Icon(Icons.mic, color: Colors.white),

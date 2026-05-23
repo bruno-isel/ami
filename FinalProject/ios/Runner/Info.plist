@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>VoiceTask needs the microphone to capture your voice and create tasks hands-free.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>VoiceTask uses speech recognition to convert your voice into task titles and dates.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>VoiceTask uses your location to remind you about tasks when you arrive at a saved place.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

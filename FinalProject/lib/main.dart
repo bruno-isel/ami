@@ -4,6 +4,9 @@ import 'app_state.dart';
 import 'routes.dart';
 import 'screens/my_tasks_screen.dart';
 import 'screens/task_detail_screen.dart';
+import 'screens/confirm_task_screen.dart';
+import 'screens/voice_input_screen.dart';
+import 'screens/task_created_screen.dart';
 import 'utils/constants.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -38,6 +41,9 @@ class VoiceTaskApp extends StatelessWidget {
           final id = ModalRoute.of(ctx)!.settings.arguments as String;
           return TaskDetailScreen(taskId: id);
         },
+        Routes.voiceInput: (_) => const VoiceInputScreen(),
+        Routes.confirmTask: (_) => const ConfirmTaskScreen(),
+        Routes.taskCreated: (_) => const TaskCreatedScreen(),
       },
     );
   }
