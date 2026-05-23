@@ -75,22 +75,22 @@ O protótipo em papel do Lab 1 identificou vários problemas nos testes de usabi
 
 ### 4.2 Alterações face ao Protótipo de Alta Fidelidade (Lab 2 — Figma)
 
-O Lab 2 produziu um protótipo Figma com 7 ecrãs. A implementação funcional introduziu as seguintes alterações justificadas:
+O Lab 2 produziu um protótipo Figma com 7 ecrãs. A implementação funcional introduziu as seguintes alterações, algumas derivadas dos testes com o Figma e outras identificadas já com a app funcional a correr no dispositivo físico (iOS).
 
 **Ecrã de Voz (Voice Input)**
 
-- **Figma:** microfone ativado por pressão longa ("Hold to activate"); campo de transcrição read-only.
-- **Implementação:** microfone ativado por toque simples. Campo de transcrição **editável com teclado** após o ditado.
-- **Justificação:** o hold gesture revelou-se ambíguo nos testes do Lab 2; o toque único é o padrão de todas as apps de voz (Siri, Google Assistant). A edição do texto captado permite corrigir erros de reconhecimento sem recomeçar — melhoria diretamente sugerida pelos participantes do Lab 2.
+- **Figma:** microfone ativado por pressão longa ("Hold to activate"); campo de transcrição read-only; cada nova gravação substituía o texto anterior.
+- **Implementação:** microfone ativado por toque simples. Campo de transcrição **editável com teclado** após o ditado. Parar e recomeçar a gravação **acrescenta** o novo texto ao anterior; shake limpa tudo.
+- **Justificação:** o hold gesture revelou-se ambíguo nos testes do Lab 2 (Figma); toque simples é o padrão das apps de voz. A edição manual foi sugerida pelos participantes do Lab 2. O comportamento de acumulação de texto foi identificado já nos testes com o protótipo funcional no dispositivo: os participantes esperavam poder ditar em várias sessões curtas sem perder o que já tinham dito.
 
 **Shake — Comportamento contextual por ecrã**
 
 - **Figma:** overlay global com duas opções fixas: "Delete last task" e "Re-dictate".
-- **Implementação:** o comportamento do shake varia conforme o ecrã ativo, tornando o gesto mais intuitivo e contextual:
+- **Implementação:** o comportamento do shake varia conforme o ecrã ativo:
   - **My Tasks:** AlertDialog "Remove / Keep" para desfazer a última tarefa criada.
-  - **Voice Input:** limpa imediatamente a transcrição atual e volta ao estado inicial, permitindo recomeçar o ditado sem tocar no ecrã.
-  - Adicionado toggle no menu (⋮) para ativar/desativar o shake em My Tasks.
-- **Justificação:** o overlay global do Figma foi simplificado porque a opção "Re-dictate" criava confusão sobre o estado da tarefa. A diferenciação por ecrã foi sugerida pelos participantes dos testes de usabilidade do protótipo funcional, que esperavam que o gesto fizesse "desfazer o que acabei de fazer" — o que tem significados diferentes consoante o ecrã em que se encontram. O toggle surgiu após participantes reportarem ativações acidentais ao levantar o dispositivo.
+  - **Voice Input:** limpa a transcrição e volta ao estado inicial, sem dialog.
+  - Toggle no menu (⋮) para ativar/desativar o shake.
+- **Justificação:** o overlay global foi simplificado porque "Re-dictate" criava confusão sobre o estado da tarefa. A diferenciação por ecrã e o toggle foram identificados nos testes com o protótipo funcional no dispositivo: participantes esperavam que o gesto fizesse "desfazer o que acabei de fazer" no contexto atual, e alguns reportaram ativações acidentais ao levantar o dispositivo.
 
 **Ecrã Task Created**
 

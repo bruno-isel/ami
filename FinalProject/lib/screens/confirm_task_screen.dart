@@ -179,18 +179,7 @@ class _ConfirmTaskScreenState extends State<ConfirmTaskScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Transcription hint
-            Text('From your voice:',
-                style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-            const SizedBox(height: 4),
-            Text(
-              state.currentTranscription,
-              style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[500],
-                  fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
 
             // Title
             TextField(
