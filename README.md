@@ -7,3 +7,11 @@ Repositório do projeto final da unidade curricular **Aplicações Multimédia I
 Desenvolvimento de um protótipo funcional móvel com múltiplas modalidades de input (voz, touch, gesto, GPS), acompanhado de testes de usabilidade e avaliação SUS com participantes reais.
 
 O projeto encontra-se em [`FinalProject/`](FinalProject/README.md).
+
+## Como correr o projeto
+
+O projeto deve ser corrido em modo **release** devido a um bug do Flutter em modo debug no iPhone (crash ao iniciar):
+
+```bash
+flutter run --release
+```
