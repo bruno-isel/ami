@@ -1,0 +1,518 @@
+import 'dart:convert';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import '../app_state.dart';
+import '../routes.dart';
+import '../utils/constants.dart';
+import '../utils/haptics.dart';
+import '../widgets/location_search_sheet.dart';
+
+class TaskDetailScreen extends StatefulWidget {
+  final String taskId;
+  const TaskDetailScreen({super.key, required this.taskId});
+
+  @override
+  State<TaskDetailScreen> createState() => _TaskDetailScreenState();
+}
+
+class _TaskDetailScreenState extends State<TaskDetailScreen> {
+  late TextEditingController _titleCtrl;
+  late TextEditingController _descCtrl;
+  DateTime? _dueDate;
+  late String _listId;
+  bool _gpsReminder = false;
+  double? _lat;
+  double? _lng;
+  String? _locationName;
+  bool _dirty = false;
+  bool _loadingLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final task = context.read<AppState>().tasks.firstWhere((t) => t.id == widget.taskId);
+    _titleCtrl = TextEditingController(text: task.title);
+    _descCtrl = TextEditingController(text: task.description ?? '');
+    _dueDate = task.dueDate;
+    _listId = task.listId;
+    _gpsReminder = task.gpsReminder;
+    _lat = task.lat;
+    _lng = task.lng;
+    _locationName = task.locationName;
+    _titleCtrl.addListener(_onChanged);
+    _descCtrl.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() => _dirty = true);
+
+  void _save(AppState state) {
+    final task = state.tasks.where((t) => t.id == widget.taskId).firstOrNull;
+    if (task == null) return;
+    final desc = _descCtrl.text.trim();
+    state.updateTask(widget.taskId, task.copyWith(
+      title: _titleCtrl.text.trim(),
+      description: desc.isEmpty ? null : desc,
+      dueDate: _dueDate,
+      listId: _listId,
+      gpsReminder: _gpsReminder,
+      lat: _lat,
+      lng: _lng,
+      locationName: _locationName,
+    ));
+    hapticLight();
+    setState(() => _dirty = false);
+  }
+
+  Future<void> _pickDate(AppState state) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365 * 2)),
+    );
+    if (date == null || !mounted) return;
+    final initial = _dueDate ?? DateTime(date.year, date.month, date.day, 9, 0);
+    DateTime picked = DateTime(date.year, date.month, date.day, initial.hour, initial.minute);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => SizedBox(
+        height: 280,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Time', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Done', style: TextStyle(fontSize: 16)),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.time,
+                initialDateTime: picked,
+                use24hFormat: true,
+                onDateTimeChanged: (dt) => picked = DateTime(date.year, date.month, date.day, dt.hour, dt.minute),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _dueDate = picked;
+      _dirty = true;
+    });
+  }
+
+  Future<void> _fetchLocation() async {
+    setState(() => _loadingLocation = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permission denied')),
+          );
+        }
+        return;
+      }
+      // Try last known first — faster and works in simulator
+      Position? pos = await Geolocator.getLastKnownPosition();
+      pos ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (mounted) {
+        String? name;
+        try {
+          final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+            'lat': pos.latitude.toString(),
+            'lon': pos.longitude.toString(),
+            'format': 'json',
+          });
+          final resp = await http.get(uri,
+              headers: {'User-Agent': 'VoiceTask/1.0 (student project)'});
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          name = locationShortName(data['display_name'] as String? ?? '');
+        } catch (_) {}
+        setState(() {
+          _lat = pos!.latitude;
+          _lng = pos.longitude;
+          _locationName = name;
+          _dirty = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not get location: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLocation = false);
+    }
+  }
+
+  Future<void> _searchLocation() async {
+    final result = await showModalBottomSheet<({double lat, double lng, String name})>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => const LocationSearchSheet(),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _lat = result.lat;
+      _lng = result.lng;
+      _locationName = result.name;
+      _dirty = true;
+    });
+  }
+
+
+  Future<void> _confirmDelete(AppState state) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete task?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    hapticHeavy();
+    state.deleteTask(widget.taskId);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final task = state.tasks.where((t) => t.id == widget.taskId).firstOrNull;
+    if (task == null) return const SizedBox.shrink();
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('Task Detail',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+        actions: [
+          if (_dirty)
+            TextButton(
+              onPressed: () => _save(state),
+              child: const Text('Save',
+                  style: TextStyle(color: kPrimaryBlue, fontWeight: FontWeight.w600)),
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          // Title
+          TextField(
+            controller: _titleCtrl,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            decoration: InputDecoration(
+              labelText: 'Title',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: kPrimaryBlue, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Description
+          TextField(
+            controller: _descCtrl,
+            maxLines: 3,
+            minLines: 2,
+            style: const TextStyle(fontSize: 15),
+            decoration: InputDecoration(
+              labelText: 'Description',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: kPrimaryBlue, width: 2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Due date
+          InkWell(
+            onTap: () => _pickDate(state),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today, color: Colors.grey[600], size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    _dueDate == null ? 'No due date' : _formatDate(_dueDate!),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: _dueDate == null ? Colors.grey[500] : Colors.black87,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_dueDate != null)
+                    GestureDetector(
+                      onTap: () => setState(() { _dueDate = null; _dirty = true; }),
+                      child: Icon(Icons.close, size: 18, color: Colors.grey[400]),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // List selector
+          const Text('List', style: TextStyle(fontSize: 13, color: Colors.grey)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              ...state.lists.map((l) => _ListChip(
+                label: l.name,
+                color: l.color,
+                selected: _listId == l.id,
+                onTap: () => setState(() { _listId = l.id; _dirty = true; }),
+              )),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, Routes.myLists),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 14, color: Colors.grey[500]),
+                      const SizedBox(width: 4),
+                      Text('New list', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // GPS reminder
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('Location reminder',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                  subtitle: const Text('Remind me when I arrive here',
+                      style: TextStyle(fontSize: 12)),
+                  value: _gpsReminder,
+                  activeColor: kPrimaryBlue,
+                  onChanged: (v) {
+                    setState(() {
+                      _gpsReminder = v;
+                      if (!v) { _lat = null; _lng = null; _locationName = null; }
+                      _dirty = true;
+                    });
+                  },
+                  secondary: Icon(
+                    Icons.location_on,
+                    color: _gpsReminder ? kPrimaryBlue : Colors.grey[400],
+                  ),
+                ),
+                if (_gpsReminder) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (_lat != null)
+                              TextButton(
+                                onPressed: () => setState(() {
+                                  _lat = null;
+                                  _lng = null;
+                                  _locationName = null;
+                                  _dirty = true;
+                                }),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8)),
+                                child: const Text('Clear'),
+                              ),
+                            TextButton.icon(
+                              onPressed: _searchLocation,
+                              icon: const Icon(Icons.search, size: 16),
+                              label: const Text('Search'),
+                              style: TextButton.styleFrom(
+                                  foregroundColor: kPrimaryBlue,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8)),
+                            ),
+                            TextButton.icon(
+                              onPressed: _loadingLocation ? null : _fetchLocation,
+                              icon: _loadingLocation
+                                  ? const SizedBox(
+                                      width: 14, height: 14,
+                                      child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.my_location, size: 16),
+                              label: const Text('Current'),
+                              style: TextButton.styleFrom(
+                                  foregroundColor: kPrimaryBlue,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8)),
+                            ),
+                          ],
+                        ),
+                        if (_lat != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                            child: Text(
+                              _locationName ?? '${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}',
+                              style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            ),
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                            child: Text('No location set',
+                                style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Delete
+          OutlinedButton.icon(
+            onPressed: () => _confirmDelete(state),
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            label: const Text('Delete task', style: TextStyle(color: Colors.red)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final h = d.hour.toString().padLeft(2, '0');
+    final m = d.minute.toString().padLeft(2, '0');
+    return '${d.day} ${months[d.month - 1]}, $h:$m';
+  }
+}
+
+class _ListChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ListChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: kAnimDuration,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
+          border: Border.all(color: selected ? color : Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10, height: 10,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? color : Colors.grey[600],
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
